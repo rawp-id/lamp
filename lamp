@@ -1,0 +1,102 @@
+#!/bin/bash
+
+LOG_FILE="/tmp/lamp.log"
+
+> "$LOG_FILE"
+
+log_operation() {
+    echo "$(date): $1" >> "$LOG_FILE"
+}
+
+manage_service() {
+    local service="$1"
+    local action="$2"
+    local output=$(sudo service "$service" "$action" 2>&1)
+    local status=$?
+    
+    if [ $status -eq 0 ]; then
+        log_operation "$service $action SUCCESS"
+    else
+        log_operation "$service $action FAILED. Details: $output"
+    fi
+}
+
+get_apache_status() {
+    local output=$(sudo service apache2 status)
+    
+    if echo "$output" | grep -q "not"; then
+        echo "inactive"
+    else
+        echo "active"
+    fi
+}
+
+get_mariadb_status() {
+    local output=$(sudo service mariadb status)
+
+    if echo "$output" | grep -q "stopped"; then
+        echo "inactive"
+    else
+        echo "active"
+    fi
+}
+
+manage_apache() {
+    OPTION=$(whiptail --title "Apache Management" --menu "Apache Status: $(get_apache_status)\nChoose your option:" 15 60 4 \
+    "1" "Start Apache" \
+    "2" "Stop Apache" \
+    "3" "Reload Apache" \
+    "4" "Restart Apache" \
+    "5" "Back" 3>&1 1>&2 2>&3)
+    
+    case $OPTION in
+        1) manage_service apache2 start ;;
+        2) manage_service apache2 stop ;;
+        3) manage_service apache2 reload ;;
+        4) manage_service apache2 restart ;;
+	5) main_menu ;;
+    esac
+}
+
+manage_mariadb() {
+    OPTION=$(whiptail --title "MySQL Management" --menu "MySQL Status: $(get_mariadb_status)\nChoose your option:" 15 60 4 \
+    "1" "Start MySQL" \
+    "2" "Stop MySQL" \
+    "3" "Reload MySQL" \
+    "4" "Restart MySQL" \
+    "5" "Back" 3>&1 1>&2 2>&3)
+    
+    case $OPTION in
+	1) manage_service mariadb start ;;
+        2) manage_service mariadb stop ;;
+        3) manage_service mariadb reload ;;
+        4) manage_service mariadb restart ;;
+	5) main_menu ;;
+    esac
+}
+
+main_menu(){
+    APACHE_STATUS=$(get_apache_status)
+    MYSQL_STATUS=$(get_mariadb_status)
+
+    OPTION=$(whiptail --title "LAMP Dashboard" --menu "Apache: $APACHE_STATUS, MySQL: $MYSQL_STATUS" 20 60 10 \
+    "0" "Refresh App" \
+    "1" "Apache Management" \
+    "2" "MySQL Management" \
+    "3" "View Log" \
+    "4" "Exit" 3>&1 1>&2 2>&3)
+
+    case $OPTION in
+	0) ;;
+        1) manage_apache ;;
+        2) manage_mariadb ;;
+	3) whiptail --textbox "$LOG_FILE" 20 78 ;;
+        4) exit ;;
+	*) whiptail --msgbox "Invalid option. Please try again." 8 45 ;;
+    esac
+}
+
+# Main loop
+while true; do
+	main_menu
+done

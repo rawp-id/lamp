@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Pastikan skrip dijalankan sebagai root
+if [ "$(id -u)" != "0" ]; then
+   echo "Skrip ini harus dijalankan sebagai root" 1>&2
+   exit 1
+fi
+
+# Cek apakah nama vhost diberikan
+if [ "$#" -ne 1 ]; then
+    echo "Penggunaan: $0 nama_vhost"
+    exit 1
+fi
+
+VHOST_NAME=$1
+VHOST_FILE="/etc/apache2/sites-available/${VHOST_NAME}.conf"
+
+# Nonaktifkan vhost
+a2dissite "${VHOST_NAME}.conf"
+
+# Restart Apache untuk menerapkan perubahan
+service apache2 restart
+
+# Hapus file konfigurasi vhost
+if [ -f "$VHOST_FILE" ]; then
+    rm "$VHOST_FILE"
+    echo "File konfigurasi vhost ${VHOST_NAME} telah dihapus."
+else
+    echo "File konfigurasi vhost ${VHOST_NAME} tidak ditemukan."
+fi
+
+DOMAIN_NAME=$1
+HOSTS_FILE="/etc/hosts"
+
+# Hapus entri dari /etc/hosts
+if grep -q "$DOMAIN_NAME" "$HOSTS_FILE"; then
+    sed -i "/$DOMAIN_NAME/d" "$HOSTS_FILE"
+    echo "Entri untuk $DOMAIN_NAME telah dihapus dari $HOSTS_FILE."
+else
+    echo "Tidak ada entri untuk $DOMAIN_NAME di $HOSTS_FILE."
+fi
+
+read -p "Apakah Anda ingin menghapus direktori root dokumen vhost? (y/n) " -n 1 -r
+echo    # (opsional) pindah ke baris baru
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    # Ekstrak DocumentRoot dari konfigurasi vhost
+    DOC_ROOT=$(grep -oP '(?<=DocumentRoot ).*' "${VHOST_FILE}")
+    if [ -d "$DOC_ROOT" ]; then
+        rm -r "$DOC_ROOT"
+        echo "Direktori root dokumen ${DOC_ROOT} telah dihapus."
+    else
+        echo "Direktori root dokumen ${DOC_ROOT} tidak ditemukan atau sudah dihapus."
+    fi
+else
+    echo "Penghapusan direktori root dokumen dibatalkan."
+fi
+

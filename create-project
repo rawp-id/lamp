@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Pastikan skrip dijalankan sebagai root
+if [ "$(id -u)" != "0" ]; then
+   echo "Skrip ini harus dijalankan sebagai root" 1>&2
+   exit 1
+fi
+
+# Cek apakah nama proyek diberikan
+if [ "$#" -ne 1 ]; then
+    echo "Penggunaan: $0 nama_proyek"
+    exit 1
+fi
+
+# Variabel konfigurasi
+PROJECT_NAME=$1
+PROJECT_DIR="/var/www/$PROJECT_NAME"
+VHOST_FILE="/etc/apache2/sites-available/$PROJECT_NAME.conf"
+HOSTS_FILE="/etc/hosts"
+URL="$PROJECT_NAME.test"
+
+# Buat direktori proyek
+mkdir -p "$PROJECT_DIR"
+echo "<h1>$PROJECT_NAME</h1>" > "$PROJECT_DIR/index.html"
+
+# Buat file konfigurasi virtual host
+cat > $VHOST_FILE <<EOF
+<VirtualHost *:8080>
+    ServerName $URL
+    DocumentRoot $PROJECT_DIR
+    <Directory $PROJECT_DIR>
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+EOF
+
+# Tambahkan entri ke file hosts
+if ! grep -q "$URL" "$HOSTS_FILE"; then
+    echo "127.0.0.1 $URL" >> "$HOSTS_FILE"
+fi
+
+# Aktifkan situs dan restart Apache
+a2ensite "$PROJECT_NAME.conf"
+service apache2 restart
+
+echo "Virtual host $URL telah dibuat."
